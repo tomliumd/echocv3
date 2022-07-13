@@ -235,5 +235,6 @@ if __name__ == '__main__':
     # batch_size limits the number of dicoms that are processed in one go. This can help out if a directory has hundreds
     #    of dicoms, which could take days to process. batch_size means the code will write and save a user-accessible
     #    output on-the-fly, processing in smaller batches as it goes.
-    main(dicomdir="/Users/jameswilkinson/Documents/FeinbergData/2022-05-22/dicoms/",
+    main(dicomdir="/data2/nea914_echo_temp/",
+        model_path="/data2/jtw_echo2/models/",
         batch_size=10)
