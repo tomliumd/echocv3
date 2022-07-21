@@ -86,7 +86,8 @@ def max_out(inputs, num_units, axis=None):
     return outputs
 
 def dropout(x, keep_prob):
-    return tf.nn.dropout(x, keep_prob)
+    # rate = 1-keep_prob cleanses a warning, same functionality
+    return tf.nn.dropout(x, rate=1-keep_prob)
 
 
 #################################

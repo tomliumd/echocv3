@@ -15,7 +15,7 @@ sys.path.append('./nets/')
 import subprocess
 import time
 from shutil import rmtree
-from optparse import OptionParser
+from argparse import ArgumentParser
 from echoanalysis_tools import output_imgdict
 
 import vgg as network
@@ -24,17 +24,20 @@ tf.disable_eager_execution()
 
 
 # # Hyperparams
-parser = OptionParser()
-parser.add_option("-d", "--dicomdir", dest="dicomdir", help="dicomdir")
-parser.add_option("-g", "--gpu", dest="gpu", default="0", help="cuda device to use")
-parser.add_option("-m", "--model", dest="model")
-params, args = parser.parse_args()
-dicomdir = params.dicomdir
-model = params.model
+parser = ArgumentParser()
+parser.add_argument("-d", "--dicomdir", dest="dicomdir", help="dicomdir", default="/data2/nea914_echo_temp/dicoms/")
+parser.add_argument("-g", "--gpu", dest="gpu", default="0", help="cuda device to use")
+parser.add_argument("-m", "--model", dest="model")
+parser.add_argument("-M", "--model_path", dest="model_path", default="/data2/jtw_echo2/models/")
+args = parser.parse_args()
+
+print(args)
+dicomdir = args.dicomdir
+model = args.model
 
 #import vgg as network
 
-os.environ["CUDA_VISIBLE_DEVICES"] = params.gpu
+os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
 
 def dicom2jpg(path, dicomfile, out_dir):
@@ -63,17 +66,18 @@ def dicom2jpg(path, dicomfile, out_dir):
     return
 
 
-def extract_jpg_single_dicom(dicom_directory, out_directory, filename):
+def extract_jpg_single_dicom(dicom_directory, out_directory, filename, min_frames=10):
     '''
     Functional to convert dicom to jpg
     :param: dicom_directory: directory of dicoms
     :param out_directory: directory to place jpgs (expect this to be dicom_directory/image/)
     :param filename: name of dicom file
+    :min_frames: minimum number of frames to sample
     '''
 
     filepath = os.path.join(dicom_directory, filename)
     print(filepath, "trying")
-    time.sleep(2)
+    # time.sleep(2)
     ds = dicom.dcmread(filepath, force=True)
     framedict = output_imgdict(ds)
 
@@ -90,8 +94,8 @@ def extract_jpg_single_dicom(dicom_directory, out_directory, filename):
         ds = dicom.dcmread(filepath)
         framedict = output_imgdict(ds)
         y = len(framedict.keys()) - 1
-        if y > 10:
-            m = random.sample(range(0, y), 10)
+        if y > min_frames:
+            m = random.sample(range(0, y), min_frames)
             for n in m:
                 targetimage = framedict[n][:]
                 outfile = os.path.join(out_directory, filename) + '-{}.jpg'.format(n)
@@ -157,6 +161,7 @@ def main(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-22/dic
          model_path='./echo_deeplearning/models/'):
 
     '''
+    TODO: rewrite for use with pooled resources
 
     :param dicomdir: directory containing dicoms
     :param batch_size: number of dicoms to process in one go. If less than the number of dicoms in the
@@ -236,6 +241,6 @@ if __name__ == '__main__':
     # batch_size limits the number of dicoms that are processed in one go. This can help out if a directory has hundreds
     #    of dicoms, which could take days to process. batch_size means the code will write and save a user-accessible
     #    output on-the-fly, processing in smaller batches as it goes.
-    main(dicomdir="/data2/nea914_echo_temp/",
-        model_path="/data2/jtw_echo2/models/",
+    main(dicomdir=args.dicomdir,
+        model_path=args.model_path,
         batch_size=10)

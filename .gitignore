@@ -1,0 +1,6 @@
+*.pyc
+__pycache__/
+funcs/__pycache__/
+nets/__pycache__/
+.idea/
+results_*.csv

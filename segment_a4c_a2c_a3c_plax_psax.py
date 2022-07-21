@@ -5,11 +5,13 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from PIL import Image
 from util import *
-from scipy.misc import imresize
+from skimage.transform import resize
 from skimage.color import rgb2gray, gray2rgb
 from echoanalysis_tools import create_imgdict_from_dicom
+import pandas as pd
 
-
+tf = tf.compat.v1
+tf.disable_eager_execution()
 #purpose:
 
 class Unet(object):        
@@ -207,7 +209,7 @@ def segmentChamber(videofile, dicomdir, view):
     print(nrow, ncol)
     plt.figure(figsize = (5, 5))
     plt.axis('off')
-    plt.imshow(imresize(preds, (nrow,ncol)))
+    plt.imshow(resize(preds, (nrow,ncol)))
     plt.savefig(outpath + '/' + videofile + '_' + str(j) + '_' + 'segmentation.png')
     plt.close() 
     plt.figure(figsize = (5, 5))
@@ -247,7 +249,7 @@ def extract_images(framedict):
     orig_images = []
     for key in framedict.keys():
         image = np.zeros((384,384))
-        image[:,:] = imresize(rgb2gray(framedict[key]), (384,384,1))
+        image[:,:] = resize(rgb2gray(framedict[key]), (384,384,1))
         images.append(image)
         orig_images.append(framedict[key])
     images = np.array(images).reshape((len(images), 384,384,1))
@@ -278,45 +280,68 @@ def extract_segs(images, orig_images, model, sess, lv_label, la_label, lvo_label
 
 def main():
     viewfile = "view_23_e5_class_11-Mar-2018_dicomsample_probabilities.txt"
-    dicomdir = "dicomsample"
+    dicomdir = "/data2/nea914_echo_temp/dicoms"
     viewlist_a2c = []
     viewlist_a3c = []
     viewlist_a4c = []
     viewlist_plax = []
     viewlist_psax = []
     
-    infile = open("viewclasses_view_23_e5_class_11-Mar-2018.txt")
-    infile = infile.readlines()
-    infile = [i.rstrip() for i in infile]
+    # infile = open("viewclasses_view_23_e5_class_11-Mar-2018.txt")
+    # infile = infile.readlines()
+    # infile = [i.rstrip() for i in infile]
 
-    viewdict = {}
+    # viewdict = {}
 
-    for i in range(len(infile)):
-        viewdict[infile[i]] = i + 2
+    # for i in range(len(infile)):
+    #     viewdict[infile[i]] = i + 2
      
-    probthresh = 0.5 #arbitrary choice of "probability" threshold for view classification
+    probthresh = 0.3 #arbitrary choice of "probability" threshold for view classification
 
-    infile = open(viewfile)
-    infile = infile.readlines()
-    infile = [i.rstrip() for i in infile]
-    infile = [i.split('\t') for i in infile]
+    # infile = open(viewfile)
+    # infile = infile.readlines()
+    # infile = [i.rstrip() for i in infile]
+    # infile = [i.split('\t') for i in infile]
 
-    for i in infile[1:]:
-        dicomdir = i[0]
-        filename = i[1]
-        if eval(i[viewdict['psax_pap']]) > probthresh:
-            viewlist_psax.append(filename)
-        elif eval(i[viewdict['a4c']]) > probthresh:
+    # for i in infile[1:]:
+    #     dicomdir = i[0]
+    #     filename = i[1]
+    #     if eval(i[viewdict['psax_pap']]) > probthresh:
+    #         viewlist_psax.append(filename)
+    #     elif eval(i[viewdict['a4c']]) > probthresh:
+    #         viewlist_a4c.append(filename)
+    #     elif eval(i[viewdict['a2c']]) > probthresh:
+    #         viewlist_a2c.append(filename)
+    #     elif eval(i[viewdict['a3c']]) > probthresh:
+    #         viewlist_a3c.append(filename)
+    #     elif eval(i[viewdict['plax_plax']]) > probthresh:
+    #         viewlist_plax.append(filename)
+    results = pd.read_csv('results_nea914_echo_temp_dicoms.csv')
+    segment = results.loc[:, ['study', 'model', 'prob_psax_pap', 'prob_a4c', 'prob_a2c', 'prob_a3c', 'prob_plax_plax']]
+    confident_views = segment[segment.loc[:, segment.columns[2:]].max(axis='columns') > 0.3]
+    confident_views = confident_views.loc[:, confident_views.columns[2:]].idxmax(axis='columns')
+    
+    for idx, view in confident_views.items():
+        filename = results.iloc[idx, 0]
+        if view == "prob_psax_pap":
             viewlist_a4c.append(filename)
-        elif eval(i[viewdict['a2c']]) > probthresh:
+        elif view == "prob_a4c":
+            viewlist_a4c.append(filename)
+        elif view == "prob_a2c":
             viewlist_a2c.append(filename)
-        elif eval(i[viewdict['a3c']]) > probthresh:
+        elif view == "prob_a3c":
             viewlist_a3c.append(filename)
-        elif eval(i[viewdict['plax_plax']]) > probthresh:
+        elif view == "prob_a4c":
             viewlist_plax.append(filename)
+        else:
+            # shouldn't get here since we only have seg. models for the above views
+            continue
+
+
     print(viewlist_a2c, viewlist_a4c, viewlist_a3c, viewlist_psax, viewlist_plax)
     segmentstudy(viewlist_a2c, viewlist_a4c, viewlist_psax, viewlist_plax, dicomdir)
     tempdir = os.path.join(dicomdir, "image")
+
     #if os.path.exists(tempdir):
     #    shutil.rmtree(tempdir)
 

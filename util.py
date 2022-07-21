@@ -4,6 +4,8 @@ import tensorflow as tf
 import os
 import subprocess
 
+tf = tf.compat.v1
+
 Src = os.path.dirname(os.path.abspath(__file__)) # src directory
 Root = os.path.dirname(Src) + '/' # root directory
 Src = Src + '/'
