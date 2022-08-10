@@ -109,7 +109,7 @@ class Unet(object):
             conv_12 = conv_(conv_11_2, label_dim, 'conv12_2', filter_size = 1, relu = False)
             return conv_12
 
-def segmentChamber(videofile, dicomdir, view):
+def segmentChamber(videofile, dicomdir, view, model_dir):
     mean = 24
     weight_decay = 1e-12
     learning_rate = 1e-4
@@ -127,7 +127,7 @@ def segmentChamber(videofile, dicomdir, view):
             model = model1
         with g_1.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess1,'./models/a4c_45_20_all_model.ckpt-9000')
+            saver.restore(sess1, os.path.join(model_dir, '/models/a4c_45_20_all_model.ckpt-9000'))
     elif view == "a2c":
         g_2 = tf.Graph()
         with g_2.as_default():
@@ -139,7 +139,7 @@ def segmentChamber(videofile, dicomdir, view):
             model = model2
         with g_2.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess2,'./models/a2c_45_20_all_model.ckpt-10600')
+            saver.restore(sess2, os.path.join('/models/a2c_45_20_all_model.ckpt-10600'))
     elif view == "a3c":
         g_3 = tf.Graph()
         with g_3.as_default():
@@ -150,7 +150,7 @@ def segmentChamber(videofile, dicomdir, view):
             sess = sess3
             model = model3
         with g_3.as_default():
-            saver.restore(sess3,'./models/a3c_45_20_all_model.ckpt-10500')
+            saver.restore(sess3, os.path.join(model_dir, '/models/a3c_45_20_all_model.ckpt-10500'))
     elif view == "psax":
         g_4 = tf.Graph()
         with g_4.as_default():
@@ -162,7 +162,7 @@ def segmentChamber(videofile, dicomdir, view):
             model = model4
         with g_4.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess4,'./models/psax_45_20_all_model.ckpt-9300')
+            saver.restore(sess4, os.path.join(model_dir, '/models/psax_45_20_all_model.ckpt-9300'))
     elif view == "plax":
         g_5 = tf.Graph()
         with g_5.as_default():
@@ -174,7 +174,7 @@ def segmentChamber(videofile, dicomdir, view):
             model = model5
         with g_5.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess5,'./models/plax_45_20_all_model.ckpt-9600')
+            saver.restore(sess5, os.path.join(model_dir, '/models/plax_45_20_all_model.ckpt-9600'))
     outpath = "./segment/" + view + "/"
     if not os.path.exists(outpath):
         os.makedirs(outpath)

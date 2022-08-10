@@ -23,23 +23,6 @@ import vgg as network
 tf.disable_eager_execution()
 
 
-# # Hyperparams
-parser = ArgumentParser()
-parser.add_argument("-d", "--dicomdir", dest="dicomdir", help="dicomdir", default="/data2/nea914_echo_temp/dicoms/")
-parser.add_argument("-g", "--gpu", dest="gpu", default="0", help="cuda device to use")
-parser.add_argument("-m", "--model", dest="model")
-parser.add_argument("-M", "--model_path", dest="model_path", default="/data2/jtw_echo2/models/")
-args = parser.parse_args()
-
-print(args)
-dicomdir = args.dicomdir
-model = args.model
-
-#import vgg as network
-
-os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-
-
 def dicom2jpg(path, dicomfile, out_dir):
     '''
     uses python GDCM to convert a compressed dicom into jpg images
@@ -138,11 +121,16 @@ def classify(directory, feature_dim, label_dim, model_name):
     predictions = {}
     for filename in os.listdir(directory):
         if "jpg" in filename:
-            image = imread(directory + filename).astype('uint8').flatten()
+            image = imread(os.path.join(directory, filename)).astype('uint8').flatten()
             imagedict[filename] = [image.reshape((224, 224, 1))]
 
     tf.reset_default_graph()
-    sess = tf.Session()
+
+    # GPU budget
+    # TODO: allocate this per number of processes we spin up
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2)
+
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
     model = network.Network(0.0, 0.0, feature_dim, label_dim, False)
     sess.run(tf.global_variables_initializer())
 
@@ -155,10 +143,10 @@ def classify(directory, feature_dim, label_dim, model_name):
     return predictions
 
 
-def main(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-22/dicoms/",
+def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-22/dicoms/",
          batch_size=100,
          model_name="view_23_e5_class_11-Mar-2018",
-         model_path='./echo_deeplearning/models/'):
+         model_path='./echo_deeplearning/models/', **kwargs):
 
     '''
     TODO: rewrite for use with pooled resources
@@ -187,7 +175,8 @@ def main(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-22/dic
     out = pd.DataFrame(index=None, columns=['study', 'model'] + ["prob_{}".format(v) for v in views])
 
     x = time.time()
-    temp_image_directory = os.path.join(dicomdir, 'image/')
+    temp_image_directory = kwargs.get('build_path', os.path.join(dicomdir, 'image/'))
+    print(temp_image_directory)
     if os.path.exists(temp_image_directory):
         rmtree(temp_image_directory)
     if not os.path.exists(temp_image_directory):
@@ -241,6 +230,22 @@ if __name__ == '__main__':
     # batch_size limits the number of dicoms that are processed in one go. This can help out if a directory has hundreds
     #    of dicoms, which could take days to process. batch_size means the code will write and save a user-accessible
     #    output on-the-fly, processing in smaller batches as it goes.
-    main(dicomdir=args.dicomdir,
-        model_path=args.model_path,
+
+    # # Hyperparams
+    parser = ArgumentParser()
+    parser.add_argument("-d", "--dicomdir", dest="dicomdir", help="dicomdir", default="/data2/nea914_echo_temp/dicoms/")
+    parser.add_argument("-g", "--gpu", dest="gpu", default="0", help="cuda device to use")
+    parser.add_argument("-m", "--model", dest="model")
+    parser.add_argument("-M", "--model_path", dest="model_path", default="/data2/jtw_echo2/models/")
+    args = parser.parse_args()
+    # print(args)
+    dicomdir = args.dicomdir
+    model = args.model
+
+    #import vgg as network
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+
+    viewclass(dicomdir=args.dicomdir, 
+        model_path=args.model_path, 
         batch_size=10)

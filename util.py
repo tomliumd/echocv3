@@ -25,10 +25,10 @@ def conv(x, filter_size, num_filters, stride, weight_decay, name, padding='SAME'
 
     with tf.variable_scope(name):
         # Create tf variables for the weights and biases of the conv layer
-        regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
+        regularizer = tf.keras.regularizers.l2(weight_decay)
         weights = tf.get_variable('W',
                                   shape=[filter_size, filter_size, input_channels // groups, num_filters],
-                                  initializer=tf.contrib.layers.xavier_initializer(),
+                                  initializer=tf.keras.initializers.glorot_normal(),
                                   trainable=trainable,
                                   # regularizer=regularizer,
                                   collections=['variables'])
@@ -58,10 +58,10 @@ def conv_rect(x, filter_size, num_filters, stride, weight_decay, name, padding='
 
     with tf.variable_scope(name):
         # Create tf variables for the weights and biases of the conv layer
-        regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
+        regularizer = tf.keras.regularizer.l2(weight_decay)
         weights = tf.get_variable('W',
                                   shape=[filter_size[0], filter_size[1], input_channels // groups, num_filters],
-                                  initializer=tf.contrib.layers.xavier_initializer(),
+                                  initializer=tf.keras.initializers.glorot_normal(),
                                   trainable=trainable,
                                   # regularizer=regularizer,
                                   collections=['variables'])
@@ -87,17 +87,17 @@ def deconv(x, filter_size, num_filters, stride, weight_decay, name, padding='SAM
     activation = None
     if relu:
         activation = tf.nn.relu
-    return tf.layers.conv2d_transpose(x, num_filters, filter_size, stride, padding=padding, kernel_initializer=tf.contrib.layers.xavier_initializer(), activation=activation, name=name)
+    return tf.layers.conv2d_transpose(x, num_filters, filter_size, stride, padding=padding, kernel_initializer=tf.keras.initializers.glorot_normal(), activation=activation, name=name)
     
     
 # Fully Connected Layer
 def fc(x, num_out, weight_decay,  name, relu=True, trainable=True):
     num_in = int(x.get_shape()[-1])
     with tf.variable_scope(name):
-        regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
+        regularizer = tf.keras.regularizer.l2(weight_decay)
         weights = tf.get_variable('W',
                                   shape=[num_in, num_out], 
-                                  initializer=tf.contrib.layers.xavier_initializer(), 
+                                  initializer=tf.keras.initializers.glorot_normal(), 
                                   trainable=trainable, 
                                   # regularizer=regularizer,
                                   collections=['variables'])
