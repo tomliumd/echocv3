@@ -1,104 +1,77 @@
 import argparse
+from ast import arg
+from distutils.command.build import build
 import os
 from doctest import OutputChecker
 # from black import out
 from datetime import datetime
 from pathlib import Path
 import distutils.util
+import py_compile
 import re
 import pickle
 import gzip
 import json
+from shutil import rmtree
+from itertools import islice
+import pandas as pd
 from tqdm import tqdm
 from loguru import logger
+import time
+
+from predict_viewclass_v2 import extract_imgs_from_dicoms
 
 import multiprocessing
 
 multiprocessing.freeze_support()
-from multiprocessing import Manager, Process, Pool
+from multiprocessing import Manager, Process, Pool, Queue
 
-def run_pv(args_dict, inputpath: Path, outputpath: Path, prod: bool = True, build_path=None):
-    from predict_viewclass_v2 import viewclass, classify, extract_imgs_from_dicoms
-    
-    run_eval = args_dict.run_eval
+BATCH_SIZE = 100
+queue_main = Queue()
+
+def take(iter, n):
+    # get the first n elements from iterable
+    return list(islice(iter, n))
+
+
+def run_preprocess(args_dict: dict, inputpath: Path, build_path: Path = None):
+    """Create individual jpegs from DICOMs in a directory.
+
+    Args:
+        args_dict (dict): arguments
+        inputpath (Path): path to DICOMs
+        build_path (Path, optional): output location for jpegs. Defaults to None.
+    """
     verbose = args_dict.verbose
-
-    if prod:
-        run_eval = False
-        verbose = False
-
-        pv_config = {
-            "verbose": verbose,
-            "run_eval": run_eval,
-            "dicomdir": inputpath,
-            "foutpath": outputpath,
-            "build_path": build_path,
-            "model_path": args_dict.model_path,
-        }
-
-    else:
-        pv_config = {
-            "verbose": args_dict.verbose,
-            "run_eval": args_dict.run_eval,
-            "dicomdir": inputpath,
-            "foutpath": outputpath,
-            "build_path": build_path,
-            "model_path": args_dict.model_path,
-        }
-
-        if verbose:
-            print("RUNNING")
+    if verbose:
+        print("RUNNING")
     logger.info(build_path)
-
-    # RemainingDicoms = os.listdir(pv_config['dicomdir'])
-    # while len(RemainingDicoms) > 0: # we want to process the dicoms in batches versus all at once
-    #     dicoms = RemainingDicoms[:min(pv_config['batch_size'], len(RemainingDicoms))] # filenames of dicoms in current batch
-
-    #     if len(dicoms) < len(RemainingDicoms): # if theres any left, trim down the stack
-    #         RemainingDicoms = RemainingDicoms[pv_config['batch_size']:] # remove these from the stack
-    #     else:
-    #         RemainingDicoms = [] # if we've used all the dicoms, set list to an empty one
-
-    #     # 1) extract jpg images from dicoms into temp_image_directory
-    #     extract_imgs_from_dicoms(pv_config['dicomdir'], pv_config['build_path'], filenames=dicoms)
-
-    #     # 2) generate predictions
-    #     #
-    #     predictions = classify(pv_config['build_path'], label_dim=1, feature_dim=23, model_name=pv_config['model_path'])
-
-    #     # 3) write to the results, and save as csv
-    #     predictprobdict = {}
-    #     for imagename in predictions.keys():
-    #         prefix = re.split('-[0-9]+.jpg', imagename)[0] # name of dicom file (not incl. the frame number)
-    #         if prefix not in predictprobdict:
-    #             predictprobdict[prefix] = []
-    #         predictprobdict[prefix].append(predictions[imagename][0])
-    #     for prefix in predictprobdict.keys():
-    #         predictprobmean = np.mean(predictprobdict[prefix], axis=0)
-    #         predictprobdict[prefix] = predictprobmean # replace with mean of all predictions
-    #         fulldata_list = [prefix, model_name] + list(predictprobmean)
-    #         out.loc[len(out) + 1] = fulldata_list
-
-    #     _dicompathtemp = os.path.normpath(dicomdir)
-    #     output_file_name = 'results_' + '_'.join(_dicompathtemp.split(os.sep)[-2:]) + '.csv'
-    #     print("Predictions for {} with {} \n {}".format(dicomdir, model_name, out))
-    #     out.to_csv(output_file_name, index=False)
-
-    #     # 4) empty the tmp directory of jpgs
-    #     for f in os.listdir(temp_image_directory):
-    #         os.remove(os.path.join(temp_image_directory, f))
-    viewclass(**pv_config)
+    
+    if not build_path.exists():
+        build_path.mkdir(parents=True)
+    
+    it = inputpath.iterdir()
+    while (batch := take(it, BATCH_SIZE)):
+        
+        if args_dict.verbose:
+            print(batch)
+        extract_imgs_from_dicoms(args_dict.input, build_path, filenames=batch)
+        # for x in batch: queue_main.put(x) # use if classifying in addition to preprocessing
 
 
 def main(args_dict):
+    if args_dict.clean:
+        args_dict.log_to.unlink()
     logger.remove()
     logger.add(args_dict.log_to, enqueue=True)
 
-    Path(args_dict.build).mkdir(exist_ok=True)
+    args_dict.build.mkdir(exist_ok=True)
 
     if args_dict.batches:
 
-        batch_indexes = os.listdir(args_dict.input)
+        # This assumes each directory below args_dict.input contains only DICOMS, no further structure
+        # TODO: access handling substructure
+        batch_indexes = [x for x in args_dict.input.iterdir()]
         num_batches = len(batch_indexes)
         logger.info(f"num_batches: {num_batches}")
 
@@ -106,10 +79,12 @@ def main(args_dict):
         if args_dict.processes > 0:
             num_threads = min(args_dict.processes, num_threads)
 
-        build_products = [os.path.join(args_dict.build, f"process{i}") for i in range(num_threads)]
-
+        if args_dict.clean:
+            rmtree(args_dict.build)
+            
+        build_products = [args_dict.build/f"process{i}" for i in range(num_threads)]
         for dir in build_products:
-            Path(dir).mkdir(parents=True, exist_ok=True)
+            dir.mkdir(parents=True, exist_ok=True)
 
         with tqdm(total=num_batches) as pbar:
             with Pool(processes=num_threads) as pool:
@@ -119,13 +94,14 @@ def main(args_dict):
                     pass
                     
                 results = [pool.apply_async(
-                    run_pv,
+                    run_preprocess,
                     args=(
                         args_dict,
-                        f"{args_dict.input}/{batch}/",
-                        args_dict.output,
-                        args_dict.prod,
+                        batch,
                         build_products[i % len(build_products)]
+                        # if we want everything in one dir, the changing the line above does it
+                        # just give each thread the same build path
+                        # shouldn't have to worry about name conflicts (TM)
                     ),
                     callback=callback
                 )
@@ -133,12 +109,6 @@ def main(args_dict):
                 results = [r.get() for r in results]
     else:
         pass
-        # predict_view(
-        #     args = args_dict,
-        #     inputpath = args_dict.input,
-        #     outputpath = args_dict.output,
-        #     prod = args_dict.prod,
-        # )
 
     logger.info("DONE")
 
@@ -147,109 +117,74 @@ if __name__ == "__main__":
     help_str = """ Rahul Deo predict echo view classifier """
     ap = argparse.ArgumentParser(description=help_str)
     ap.add_argument(
-        "-i",
-        "--input",
-        default="/data2/nea914_echo_temp/dicoms",
+        "-i", "--input",
+        default="/data2/NMEcho/echo_testing/dicoms/without/",
         help="Path to the directory or the file that contains the PHI note, the default is /data2/nea914/echo_temp/dicoms",
-        type=str,
+        type=Path,
     )
     ap.add_argument(
-        "-b",
-        "--batches",
-        action="store_true",
+        "-b", "--batches",
         help="If true, the input directory contains multiple batches. Each batch is a directory with notes.",
+        default=True,
+        action=argparse.BooleanOptionalAction,
     )
     ap.add_argument(
-        "-p",
-        "--processes",
+        "-p", "--processes",
         default=0,
         help="Number of cpu processes to run in parallel, the default is 0, which means use all available cpus",
         type=int,
     )
+    # TODO: not in use if only doing preprocessing
     ap.add_argument(
-        "-g",
-        "--gpu",
+        "-g", "--gpu",
         default="0",
         help="Cuda device to use for classification. (Currently only works with a single device)",
         type=str,
     )
+    # TODO: not in use if only doing preprocessing
     ap.add_argument(
-        "-o",
-        "--output",
+        "-o", "--output",
         default="./results",
         help="Path to the directory to save the PHI-reduced notes in, the default is ./results",
-        type=str,
+        type=Path,
     )
     ap.add_argument(
-        "-l",
-        "--log-to",
+        "-l", "--log-to",
         default="./logs/file.log",
         help="Path to file in which to save the logs, the default is ./logs/file.log",
-        type=str,
-    )
-    # ap.add_argument(
-    #     "-f",
-    #     "--filters",
-    #     default="./configs/integration_1.json",
-    #     help="Path to our config file, the default is ./configs/integration_1.json",
-    #     type=str,
-    # )
-    # ap.add_argument(
-    #     "-x",
-    #     "--xml",
-    #     default="./data/phi_notes.json",
-    #     help="Path to the json file that contains all xml data",
-    #     type=str,
-    # )
-    # ap.add_argument(
-    #     "-c",
-    #     "--coords",
-    #     default="./data/coordinates.json",
-    #     help="Path to the json file that contains the coordinate map data",
-    #     type=str,
-    # )
-    # ap.add_argument(
-    #     "--eval_output",
-    #     default="./data/phi/",
-    #     help="Path to the directory that the detailed eval files will be outputted to",
-    #     type=str,
-    # )
-    ap.add_argument(
-        "-v",
-        "--verbose",
-        default=True,
-        help="When verbose is true, will emit messages about script progress",
-        type=lambda x: bool(distutils.util.strtobool(x)),
+        type=Path,
     )
     ap.add_argument(
-        "-e",
-        "--run_eval",
-        default=True,
-        help="When run_eval is true, will run our eval script and emit summarized results to terminal",
-        type=lambda x: bool(distutils.util.strtobool(x)),
-    )
-    ap.add_argument(
-        "--prod",
+        "-v", "--verbose",
         default=False,
-        help="When prod is true, this will run the script with output in i2b2 xml format without running the eval script",
-        type=lambda x: bool(distutils.util.strtobool(x)),
+        help="When verbose is true, will emit messages about script progress",
+        action=argparse.BooleanOptionalAction,
     )
+    # TODO: not in use if only doing preprocessing
     ap.add_argument(
-        "-M",
-        "--model_path",
-        default="/data2/jtw_echo2/models/",
+        "-M", "--model_path",
+        default="/data2/NMEcho/jtw_echo2/models/",
         help="Location of model checkpoints",
-        type=str
+        type=Path
     )
     ap.add_argument(
-        "-B",
-        "--build",
+        "-B", "--build",
         default="./build/",
         help="Location for intermediate build files (e.g. echo movies)",
-        type=str
+        type=Path
+    )
+    ap.add_argument(
+        "-c", "--clean",
+        default=False,
+        help="Recreate all frames for classification",
+        action=argparse.BooleanOptionalAction
     )
 
     args_dict = ap.parse_args()
     print(args_dict)
     # run_pv(args_dict, args_dict.input, args_dict.output)
+    start = time.time()
     main(args_dict)
+    end = time.time()
+    print("time: ", str(end - start))
+    # 3 processes were able to process 3 batches of 100 DICOMs (300 total) in ~230 seconds (1.25 miuntes / 100 DICOMs)

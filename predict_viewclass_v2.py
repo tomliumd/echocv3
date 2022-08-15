@@ -6,6 +6,7 @@ import sys
 import cv2
 import pydicom as dicom
 import os
+from pathlib import Path
 from imageio.v2 import imread
 import pandas as pd
 import re
@@ -30,7 +31,7 @@ def dicom2jpg(path, dicomfile, out_dir):
     :param dicomfile: name of dicom file
     :param out_dir: output directory to put jpgs
     '''
-
+    # TODO: move over to pathlib
     ds = dicom.dcmread(os.path.join(path, dicomfile))
     if dicomfile[-4:] == '.dcm':
         dicomfile = dicomfile.replace('.dcm', '.jpg')
@@ -58,10 +59,9 @@ def extract_jpg_single_dicom(dicom_directory, out_directory, filename, min_frame
     :min_frames: minimum number of frames to sample
     '''
 
-    filepath = os.path.join(dicom_directory, filename)
-    print(filepath, "trying")
+    print(filename, "trying")
     # time.sleep(2)
-    ds = dicom.dcmread(filepath, force=True)
+    ds = dicom.dcmread(filename, force=True)
     framedict = output_imgdict(ds)
 
     # some quick error handling
@@ -74,14 +74,14 @@ def extract_jpg_single_dicom(dicom_directory, out_directory, filename, min_frame
 
     y = len(framedict.keys()) - 1
     try:
-        ds = dicom.dcmread(filepath)
-        framedict = output_imgdict(ds)
-        y = len(framedict.keys()) - 1
+        # ds = dicom.dcmread(filename)
+        # framedict = output_imgdict(ds)
+        # y = len(framedict.keys()) - 1
         if y > min_frames:
             m = random.sample(range(0, y), min_frames)
             for n in m:
                 targetimage = framedict[n][:]
-                outfile = os.path.join(out_directory, filename) + '-{}.jpg'.format(n)
+                outfile = str(out_directory/(filename.name + '-{}.jpg'.format(n)))
                 cv2.imwrite(outfile, cv2.resize(targetimage, (224, 224)), [cv2.IMWRITE_JPEG_QUALITY, 95])
         else:
             print("Too few frames: {}".format(filename))
@@ -101,7 +101,7 @@ def extract_imgs_from_dicoms(dicom_directory, out_directory, filenames=None):
     @param target: destination folder to where converted jpg files are placed
     """
     if filenames is None:
-        filenames = os.listdir(dicom_directory)
+        filenames = [x for x in dicom_directory.iterdir()]
 
     for filename in filenames[:]:
         if filename == 'image': # skip if its the temp directory we've made called "image/"
@@ -119,9 +119,9 @@ def classify(directory, feature_dim, label_dim, model_name):
     """
     imagedict = {}
     predictions = {}
-    for filename in os.listdir(directory):
+    for filename in directory.iterdir():
         if "jpg" in filename:
-            image = imread(os.path.join(directory, filename)).astype('uint8').flatten()
+            image = imread(directory/filename).astype('uint8').flatten()
             imagedict[filename] = [image.reshape((224, 224, 1))]
 
     tf.reset_default_graph()
@@ -146,7 +146,7 @@ def classify(directory, feature_dim, label_dim, model_name):
 def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-22/dicoms/",
          batch_size=100,
          model_name="view_23_e5_class_11-Mar-2018",
-         model_path='./echo_deeplearning/models/', **kwargs):
+         model_path=Path('./echo_deeplearning/models/'), **kwargs):
 
     '''
     TODO: rewrite for use with pooled resources
@@ -163,7 +163,7 @@ def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-2
     :return: None, but writes results to a csv in ./results/
     '''
 
-    model_pathname = os.path.join(model_path, model_name)
+    model_pathname = model_path/model_name
 
     infile = open("viewclasses_" + model_name + ".txt")
     infile = infile.readlines()
@@ -175,14 +175,13 @@ def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-2
     out = pd.DataFrame(index=None, columns=['study', 'model'] + ["prob_{}".format(v) for v in views])
 
     x = time.time()
-    temp_image_directory = kwargs.get('build_path', os.path.join(dicomdir, 'image/'))
-    print(temp_image_directory)
-    if os.path.exists(temp_image_directory):
+    temp_image_directory = kwargs.get('build_path', dicomdir/'image/')
+    if temp_image_directory.exists():
         rmtree(temp_image_directory)
-    if not os.path.exists(temp_image_directory):
-        os.makedirs(temp_image_directory)
+    if not temp_image_directory.exists():
+        temp_image_directory.mkdir(parents=True, exist_ok=True)
 
-    RemainingDicoms = os.listdir(dicomdir)
+    RemainingDicoms = [x for x in dicomdir.iterdir()]
     while len(RemainingDicoms) > 0: # we want to process the dicoms in batches versus all at once
         dicoms = RemainingDicoms[:min(batch_size, len(RemainingDicoms))] # filenames of dicoms in current batch
 
@@ -210,14 +209,14 @@ def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-2
             fulldata_list = [prefix, model_name] + list(predictprobmean)
             out.loc[len(out) + 1] = fulldata_list
 
-        _dicompathtemp = os.path.normpath(dicomdir)
-        output_file_name = 'results_' + '_'.join(_dicompathtemp.split(os.sep)[-2:]) + '.csv'
+        # _dicompathtemp = os.path.normpath(dicomdir)
+        output_file_name = 'results_' + '_'.join(dicomdir.parents[:1]) + '.csv'
         print("Predictions for {} with {} \n {}".format(dicomdir, model_name, out))
         out.to_csv(output_file_name, index=False)
 
         # 4) empty the tmp directory of jpgs
-        for f in os.listdir(temp_image_directory):
-            os.remove(os.path.join(temp_image_directory, f))
+        for f in temp_image_directory.iterdir():
+            f.unlink()
 
     y = time.time()
     print("time:  " + str(y - x) + " seconds for " + str(len(predictprobdict.keys())) + " videos")
@@ -233,10 +232,22 @@ if __name__ == '__main__':
 
     # # Hyperparams
     parser = ArgumentParser()
-    parser.add_argument("-d", "--dicomdir", dest="dicomdir", help="dicomdir", default="/data2/nea914_echo_temp/dicoms/")
-    parser.add_argument("-g", "--gpu", dest="gpu", default="0", help="cuda device to use")
-    parser.add_argument("-m", "--model", dest="model")
-    parser.add_argument("-M", "--model_path", dest="model_path", default="/data2/jtw_echo2/models/")
+    parser.add_argument(
+        "-d", "--dicomdir",
+        help="Location of dicoms",
+        default="/data2/NMEcho/echo_testing/dicoms/",
+        type=Path)
+    parser.add_argument(
+        "-g", "--gpu",
+        default="0",
+        help="cuda device to use")
+    parser.add_argument(
+        "-m", "--model",
+        help="Which model name to use")
+    parser.add_argument(
+        "-M", "--model_path",
+        default="/data2/NMEcho/jtw_echo2/models/",
+        type=Path)
     args = parser.parse_args()
     # print(args)
     dicomdir = args.dicomdir
