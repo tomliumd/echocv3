@@ -81,8 +81,9 @@ def extract_jpg_single_dicom(dicom_directory, out_directory, filename, min_frame
             m = random.sample(range(0, y), min_frames)
             for n in m:
                 targetimage = framedict[n][:]
-                outfile = str(out_directory/(filename.name + '-{}.jpg'.format(n)))
-                cv2.imwrite(outfile, cv2.resize(targetimage, (224, 224)), [cv2.IMWRITE_JPEG_QUALITY, 95])
+                outfile = out_directory/(filename.name + '-{}.jpg'.format(n))
+                cv2.imwrite(str(outfile), cv2.resize(targetimage, (224, 224)), [cv2.IMWRITE_JPEG_QUALITY, 95])
+            return filename
         else:
             print("Too few frames: {}".format(filename))
 
@@ -102,13 +103,14 @@ def extract_imgs_from_dicoms(dicom_directory, out_directory, filenames=None):
     """
     if filenames is None:
         filenames = [x for x in dicom_directory.iterdir()]
+    completed = []
 
     for filename in filenames[:]:
         if filename == 'image': # skip if its the temp directory we've made called "image/"
             pass
         else:
-            extract_jpg_single_dicom(dicom_directory, out_directory, filename)
-    return 1
+            completed.append(extract_jpg_single_dicom(dicom_directory, out_directory, filename))
+    return completed
 
 
 def classify(directory, feature_dim, label_dim, model_name):
@@ -120,8 +122,8 @@ def classify(directory, feature_dim, label_dim, model_name):
     imagedict = {}
     predictions = {}
     for filename in directory.iterdir():
-        if "jpg" in filename:
-            image = imread(directory/filename).astype('uint8').flatten()
+        if "jpg" in str(filename):
+            image = imread(filename).astype('uint8').flatten()
             imagedict[filename] = [image.reshape((224, 224, 1))]
 
     tf.reset_default_graph()
@@ -135,7 +137,7 @@ def classify(directory, feature_dim, label_dim, model_name):
     sess.run(tf.global_variables_initializer())
 
     saver = tf.train.Saver()
-    saver.restore(sess, model_name)
+    saver.restore(sess, str(model_name))
 
     for filename in imagedict:
         predictions[filename] = np.around(model.probabilities(sess, imagedict[filename]), decimals=3)
@@ -199,7 +201,7 @@ def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-2
         # 3) write to the results, and save as csv
         predictprobdict = {}
         for imagename in predictions.keys():
-            prefix = re.split('-[0-9]+.jpg', imagename)[0] # name of dicom file (not incl. the frame number)
+            prefix = re.split('-[0-9]+.jpg', imagename.name)[0] # name of dicom file (not incl. the frame number)
             if prefix not in predictprobdict:
                 predictprobdict[prefix] = []
             predictprobdict[prefix].append(predictions[imagename][0])
@@ -210,7 +212,7 @@ def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-2
             out.loc[len(out) + 1] = fulldata_list
 
         # _dicompathtemp = os.path.normpath(dicomdir)
-        output_file_name = 'results_' + '_'.join(dicomdir.parents[:1]) + '.csv'
+        output_file_name = 'results_' + '_'.join(str(dicomdir.parent).split("/")[-2:]) + '.csv'
         print("Predictions for {} with {} \n {}".format(dicomdir, model_name, out))
         out.to_csv(output_file_name, index=False)
 
@@ -235,7 +237,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "-d", "--dicomdir",
         help="Location of dicoms",
-        default="/data2/NMEcho/echo_testing/dicoms/",
+        default="/data2/NMEcho/echo_testing/dicoms/without/batch_0",
         type=Path)
     parser.add_argument(
         "-g", "--gpu",
@@ -243,10 +245,11 @@ if __name__ == '__main__':
         help="cuda device to use")
     parser.add_argument(
         "-m", "--model",
-        help="Which model name to use")
+        help="Which model name to use",
+        default=None)
     parser.add_argument(
         "-M", "--model_path",
-        default="/data2/NMEcho/jtw_echo2/models/",
+        default="/data2/NMEcho/echo_testing/models/",
         type=Path)
     args = parser.parse_args()
     # print(args)
@@ -259,4 +262,5 @@ if __name__ == '__main__':
 
     viewclass(dicomdir=args.dicomdir, 
         model_path=args.model_path, 
-        batch_size=10)
+        batch_size=10,
+        build_path=Path("build/test"))

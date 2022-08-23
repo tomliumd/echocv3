@@ -160,12 +160,12 @@ def output_imgdict(imagefile):
             v = frame[:, :, 2]
             ArrayDicom[:, :] = ybr2gray(y, u, v)
             ArrayDicom[0:int(nrow / 10), 0:int(ncol)] = 0  # blanks out name
-            counter = counter + 1
+            # counter = counter + 1
             ArrayDicom.clip(0)
             nrowout = nrow
             ncolout = ncol
-            x = int(counter / 3)
-            imgdict[x] = cv2.resize(ArrayDicom, (nrowout, ncolout))
+            # x = int(counter / 3)
+            imgdict[counter] = cv2.resize(ArrayDicom, (nrowout, ncolout))
         return imgdict
     except:
         return "General Failure"
@@ -208,17 +208,18 @@ def create_imgdict_from_dicom(directory, filename):
     temp_directory = os.path.join(directory, "image")
     if not os.path.exists(temp_directory):
         os.makedirs(temp_directory)
-    ds = dicom.read_file(targetfile, force = True)
+    ds = dicom.dcmread(targetfile, force = True)
+    print(ds.pixel_array.shape)
     if ("NumberOfFrames" in  dir(ds)) and (ds.NumberOfFrames>1):
-        outrawfile = os.path.join(temp_directory, filename + "_raw")
-        command = 'gdcmconv -w ' + os.path.join(directory, filename) + " "  + outrawfile
-        subprocess.Popen(command, shell=True)
-        time.sleep(10)
-        if os.path.exists(outrawfile):
-            ds = dicom.read_file(outrawfile, force = True)
-            imgdict = output_imgdict(ds)
-        else:
-            print(outrawfile, "missing")
+        # outrawfile = os.path.join(temp_directory, filename + "_raw")
+        # command = 'gdcmconv -w ' + os.path.join(directory, filename) + " "  + outrawfile # pydicom handles decompression
+        # subprocess.Popen(command, shell=True) # I've heard to avoid this kind of coding
+        # time.sleep(10)
+        # if os.path.exists(outrawfile):
+        #     ds = dicom.read_file(outrawfile, force = True)
+        imgdict = output_imgdict(ds)
+        # else:
+            # print(outrawfile, "missing")
     return imgdict
 
 

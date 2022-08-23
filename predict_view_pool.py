@@ -55,7 +55,10 @@ def run_preprocess(args_dict: dict, inputpath: Path, build_path: Path = None):
         
         if args_dict.verbose:
             print(batch)
-        extract_imgs_from_dicoms(args_dict.input, build_path, filenames=batch)
+        completed = extract_imgs_from_dicoms(args_dict.input, build_path, filenames=batch)
+        
+        if args_dict.predict:
+            for x in completed: queue_main.put(x)
         # for x in batch: queue_main.put(x) # use if classifying in addition to preprocessing
 
 
@@ -176,7 +179,13 @@ if __name__ == "__main__":
     ap.add_argument(
         "-c", "--clean",
         default=False,
-        help="Recreate all frames for classification",
+        help="Recreate all frames",
+        action=argparse.BooleanOptionalAction
+    )
+    ap.add_argument(
+        "-p", "--predict",
+        default=False,
+        help="Predict the view for each dicom",
         action=argparse.BooleanOptionalAction
     )
 

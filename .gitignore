@@ -3,6 +3,8 @@ __pycache__/
 funcs/__pycache__/
 nets/__pycache__/
 build/
+segment/
 .idea/
 results_*.csv
 *.log
+.ipynb_checkpoints/
