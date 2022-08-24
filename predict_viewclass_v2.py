@@ -11,15 +11,13 @@ from imageio.v2 import imread
 import pandas as pd
 import re
 
-sys.path.append('./funcs/')
-sys.path.append('./nets/')
 import subprocess
 import time
 from shutil import rmtree
 from argparse import ArgumentParser
 from echoanalysis_tools import output_imgdict
 
-import vgg as network
+import nets.vgg as network
 
 tf.disable_eager_execution()
 
@@ -252,8 +250,6 @@ if __name__ == '__main__':
     # print(args)
     dicomdir = args.dicomdir
     model = args.model
-
-    #import vgg as network
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 

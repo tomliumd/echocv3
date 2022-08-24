@@ -3,8 +3,7 @@ import tensorflow.compat.v1 as tf
 import tensorflow as tf2
 import sys
 
-sys.path.append('../funcs/')
-import nn
+from funcs import nn
 
 # # Network
 class Network(object):        
