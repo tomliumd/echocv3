@@ -57,14 +57,14 @@ def extract_jpg_single_dicom(dicom_directory, out_directory, filename, min_frame
     :min_frames: minimum number of frames to sample
     '''
 
-    print(filename, "trying")
+    # print(filename, "trying")
     # time.sleep(2)
     ds = dicom.dcmread(filename, force=True)
     framedict = output_imgdict(ds)
 
     # some quick error handling
     if framedict == "Only Single Frame":
-        print("Single Frame DICOM skipped: {}".format(filename))
+        # print("Single Frame DICOM skipped: {}".format(filename))
         return
     if framedict == "General Failure":
         print("DICOM skipped, likely has an attribute missing: {}".format(filename))
@@ -218,7 +218,7 @@ def viewclass(dicomdir = "/Users/jameswilkinson/Documents/FeinbergData/2022-05-2
             out.loc[len(out) + 1] = fulldata_list
 
         # _dicompathtemp = os.path.normpath(dicomdir)
-        output_file_name = 'results_' + patientid + '_'.join(dicomdir.parents[0].as_posix()[:dicomdir.parents[0].as_posix().rfind('/')].split('/')) + '.csv' #why does .parents not work here?
+        output_file_name = 'csv_out/results_' + patientid + '_'.join(dicomdir.parents[0].as_posix()[:dicomdir.parents[0].as_posix().rfind('/')].split('/')) + '.csv' #why does .parents not work here?
         print("Predictions for {} with {} \n {}".format(dicomdir, model_name, out))
         out.to_csv(Path(output_dir)/output_file_name, index=False)
 
