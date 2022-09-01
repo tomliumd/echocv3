@@ -150,6 +150,7 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
             sess = sess3
             model = model3
         with g_3.as_default():
+            saver = tf.train.Saver()
             saver.restore(sess3, os.path.join(model_dir, 'models/a3c_45_20_all_model.ckpt-10500'))
     elif view == "psax":
         g_4 = tf.Graph()

@@ -165,7 +165,7 @@ def output_imgdict(imagefile):
             nrowout = nrow
             ncolout = ncol
             # x = int(counter / 3)
-            imgdict[counter] = cv2.resize(ArrayDicom, (nrowout, ncolout))
+            imgdict[counter] = cv2.resize(ArrayDicom, (ncolout, nrowout))
         return imgdict
     except:
         return "General Failure"
