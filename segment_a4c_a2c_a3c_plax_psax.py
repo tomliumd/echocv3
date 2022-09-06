@@ -127,7 +127,7 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
             model = model1
         with g_1.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess1, os.path.join(model_dir, '/models/a4c_45_20_all_model.ckpt-9000'))
+            saver.restore(sess1, os.path.join(model_dir, 'models/a4c_45_20_all_model.ckpt-9000'))
     elif view == "a2c":
         g_2 = tf.Graph()
         with g_2.as_default():
@@ -139,7 +139,7 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
             model = model2
         with g_2.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess2, os.path.join('/models/a2c_45_20_all_model.ckpt-10600'))
+            saver.restore(sess2, os.path.join('models/a2c_45_20_all_model.ckpt-10600'))
     elif view == "a3c":
         g_3 = tf.Graph()
         with g_3.as_default():
@@ -150,7 +150,8 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
             sess = sess3
             model = model3
         with g_3.as_default():
-            saver.restore(sess3, os.path.join(model_dir, '/models/a3c_45_20_all_model.ckpt-10500'))
+            saver = tf.train.Saver()
+            saver.restore(sess3, os.path.join(model_dir, 'models/a3c_45_20_all_model.ckpt-10500'))
     elif view == "psax":
         g_4 = tf.Graph()
         with g_4.as_default():
@@ -162,7 +163,7 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
             model = model4
         with g_4.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess4, os.path.join(model_dir, '/models/psax_45_20_all_model.ckpt-9300'))
+            saver.restore(sess4, os.path.join(model_dir, 'models/psax_45_20_all_model.ckpt-9300'))
     elif view == "plax":
         g_5 = tf.Graph()
         with g_5.as_default():
@@ -174,7 +175,7 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
             model = model5
         with g_5.as_default():
             saver = tf.train.Saver()
-            saver.restore(sess5, os.path.join(model_dir, '/models/plax_45_20_all_model.ckpt-9600'))
+            saver.restore(sess5, os.path.join(model_dir, 'models/plax_45_20_all_model.ckpt-9600'))
     outpath = "./segment/" + view + "/"
     if not os.path.exists(outpath):
         os.makedirs(outpath)
@@ -227,13 +228,13 @@ def segmentChamber(videofile, dicomdir, view, model_dir):
 
 def segmentstudy(viewlist_a2c, viewlist_a4c, viewlist_psax, viewlist_plax, dicomdir):
     for video in viewlist_a4c:
-        segmentChamber(video, dicomdir, "a4c")
+        segmentChamber(video, dicomdir, "a4c", model_dir="/data2/NMEcho/echo_testing/")
     for video in viewlist_a2c:
-        segmentChamber(video, dicomdir, "a2c")
+        segmentChamber(video, dicomdir, "a2c", "/data2/NMEcho/echo_testing/")
     for video in viewlist_psax:
-        segmentChamber(video, dicomdir, "psax")
+        segmentChamber(video, dicomdir, "psax", "/data2/NMEcho/echo_testing/")
     for video in viewlist_plax:
-        segmentChamber(video, dicomdir, "plax")
+        segmentChamber(video, dicomdir, "plax", "/data2/NMEcho/echo_testing/")
     return 1
 
 
@@ -249,7 +250,8 @@ def extract_images(framedict):
     orig_images = []
     for key in framedict.keys():
         image = np.zeros((384,384))
-        image[:,:] = resize(rgb2gray(framedict[key]), (384,384,1))
+        # dont need the color conversion since already handled in output_imgdict
+        image[:,:] = resize(framedict[key], (384,384))
         images.append(image)
         orig_images.append(framedict[key])
     images = np.array(images).reshape((len(images), 384,384,1))
