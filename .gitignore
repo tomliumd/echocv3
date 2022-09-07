@@ -1,8 +1,14 @@
 *.pyc
 __pycache__/
-funcs/__pycache__/
-nets/__pycache__/
 build/
 .idea/
 results_*.csv
 *.log
+venv/
+MESA_e6_clinical_cpet_olink_af_NTproBNP_echo_H2FPEF.dta
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+.idea
+.DS_Store
+*/__pycache__/*
+*__pycache__*
